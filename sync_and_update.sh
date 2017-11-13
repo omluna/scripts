@@ -1,7 +1,8 @@
 #!/bin/bash
 reponame=$1
-echo "sync with git server...."
 
+echo "`date` update $reponame index start"
+echo "sync with git server...."
 SRC_PATH=/home/android/chenyee_xref/src
 BIN_PATH=/home/android/chenyee_xref/bin
 DATA_PATH=/home/android/chenyee_xref/data
@@ -27,3 +28,5 @@ done
 
 echo "update opengrok index..."
 $BIN_PATH/update_opengrok_index.sh $DATA_PATH/$reponame /$reponame $SRC_PATH/$reponame $port
+
+echo "`date` update $reponame index end"
