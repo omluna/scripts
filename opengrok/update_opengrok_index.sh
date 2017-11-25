@@ -2,6 +2,9 @@
 cd /home/android/opengrok/bin
 
 SRC_PATH=$3
+export 		JAVA_HOME=/usr/local/jdk
+#export		OPENGROK_VERBOSE=v 
+#export		OPENGROK_PROGRESS=v 
 export    OPENGROK_INSTANCE_BASE=$1
 export    OPENGROK_WEBAPP_CONTEXT=$2
 export 	  OPENGROK_WEBAPP_CFGADDR=localhost:$4
@@ -13,4 +16,3 @@ echo $OPENGROK_WEBAPP_CFGADDR
 echo $SRC_PATH
 
 ./OpenGrok index $SRC_PATH
-cd -
