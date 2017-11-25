@@ -201,6 +201,12 @@ echo "/*=worker
 mkdir /data/www/p-admin/manager/
 cp -a /usr/local/tomcat/webapps/manager/images/ /data/www/p-admin/manager/
 
+#修改 tomcat session 过期时间为120分钟
+vi /usr/local/tomcat/conf/web.xml
+<session-config>
+        <session-timeout>120</session-timeout>
+</session-config>
+
 echo "tomcat is ready"
 
 #install mysql on ota3
@@ -208,6 +214,12 @@ yum install mysql-server  #only availd on centos 6.x
 
 #>create database otadb DEFAULT CHARACTER SET utf8 COLLATE utf8_general_ci;
 #>use otadb;
+vi /etc/my.cnf
+加入
+log-bin=mysql-bin
+server-id=1
+记录所有的 mysql 的操作，来跟 slave 做双机备份 具体参看最后面
+
 >source otadb.sql;
 >source otapushdb.sql;
 >grant all on otadb.* to otadbw@'%' identified by 'tvua3545';
@@ -218,7 +230,9 @@ yum install mysql-server  #only availd on centos 6.x
 #install otadm
 cp otadm.war /usr/local/tomcat/webapps/
 #becasue otadm miss the aps package, we need copy from the otatest server manully.
-scp -r aps root@119.81.96.122:/usr/local/tomcat/webapps/otadm/WEB-INF/classes/com/gionee
+scp aps.tar.gz root@119.81.96.122:~/
+tar xvf aps.tar.gz
+cp -r aps /usr/local/tomcat/webapps/otadm/WEB-INF/classes/com/gionee
 
 
 #vi /usr/local/tomcat/bin/catalina.sh #lugf -XX:PermSize=256M -XX:MaxPermSize=512m 在8.0 里不支持
@@ -650,6 +664,82 @@ rsync:rsync@ota2   #用户名密码
 
 因为strict modes = yes,所以必须
 chmod 600 /etc/rsync.secure
+
+
+#mysql 双机备份
+在 master 端 ： /etc/my.cnf 里加入：
+log-bin=mysql-bin
+server-id=1
+mysql> grant replication  slave on *.* to repl@10.67.37.108 identified by 'repl';
+mysql> flush privileges;
+mysql> flush tables with read lock;
+mysql> show master status;
+这里记录下上面这条命令的输出：
++------------------+----------+--------------+------------------+
+| File             | Position | Binlog_Do_DB | Binlog_Ignore_DB |
++------------------+----------+--------------+------------------+
+| mysql-bin.000001 |  5975967 |              |                  |
++------------------+----------+--------------+------------------+
+
+在 slave 机器 上：
+vi /etc/my.cnf
+log-bin=mysql-bin
+server-id=2
+进入 mysql: log_file, log_pos 填入 master status; 输出的内容
+mysql>change master to master_host='10.67.37.67',master_user='repl',master_password='repl',master_log_file=‘mysql-bin.000001’,master_log_pos=5975967;
+mysql>start slave;
+mysql>show slave status\G;
+#这里其实 log_pos = 0 是否就会同步创建数据库表在 slave 上，把从0到当前位置 5975967 的命令都在 slave 上执行一遍 ？
+http://blog.csdn.net/xlgen157387/article/details/51331244/
+https://dev.mysql.com/doc/refman/5.5/en/replication-howto-masterbaseconfig.html
+
+
+#配置防火墙
+ota1, ota2 仅仅对外网的网口开放 90，91，92 端口
+iptables -F INPUT
+iptables -A INPUT -i bond1 -p tcp --dport 90 -j ACCEPT
+iptables -A INPUT -i bond1 -p tcp --dport 91 -j ACCEPT
+iptables -A INPUT -i bond1 -p tcp --dport 92 -j ACCEPT
+iptables -A INPUT -i bond1 -p tcp --dport 22 -j ACCEPT
+# Ping
+iptables -A INPUT -i bond1 -p icmp --icmp-type echo-request -j ACCEPT
+# Sendmail
+iptables -A INPUT -p tcp -i bond1 --sport 25 -m state --state ESTABLISHED -j ACCEPT
+# reject all others
+iptables -A INPUT -i bond1 -j REJECT
+
+
+mysql master, slave
+对外仅仅开放 22 ssh 端口用来做跳板连接到 ota1, ota2
+iptables -A INPUT -i bond1 -p tcp --dport 22 -j ACCEPT
+# Ping
+iptables -A INPUT -i bond1 -p icmp --icmp-type echo-request -j ACCEPT
+iptables -A INPUT -i bond1 -j REJECT
+
+
+配置 sshd 防止密码暴力破解
+/etc/ssh/sshd_config 里：
+MaxAuthTries 更改 2 # 注意千万不能小于 2 , 否则直接完全登录不了了
+
+编辑 /etc/hosts.allow:
+把允许登录 ssh 的 IP 加入（包括内网 IP)
+
+创建 /usr/local/bin/secure_ssh.sh
+#!/bin/bash
+cat /var/log/secure|awk '/Failed/{print $(NF-3)}'|sort|uniq -c|awk '{print $2"="$1;}' > /usr/local/bin/black.list
+ipaddrs=`cat  /usr/local/bin/black.list`
+for i in $ipaddrs;
+do
+  IP=`echo $i |awk -F= '{print $1}'`
+  NUM=`echo $i|awk -F= '{print $2}'`
+  if [ ${#NUM} -gt 1 ]; then
+    grep $IP /etc/hosts.deny > /dev/null
+    if [ $? -gt 0 ];then
+      echo "sshd:$IP:deny" >> /etc/hosts.deny
+    fi
+  fi
+done
+
 
 #测试：
 http://ota.chenyee.com:90/ota/check.do
