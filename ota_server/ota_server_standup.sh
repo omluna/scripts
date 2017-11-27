@@ -700,7 +700,6 @@ iptables -F INPUT
 iptables -A INPUT -i bond1 -p tcp --dport 90 -j ACCEPT
 iptables -A INPUT -i bond1 -p tcp --dport 91 -j ACCEPT
 iptables -A INPUT -i bond1 -p tcp --dport 92 -j ACCEPT
-iptables -A INPUT -i bond1 -p tcp --dport 22 -j ACCEPT
 # Ping
 iptables -A INPUT -i bond1 -p icmp --icmp-type echo-request -j ACCEPT
 # Sendmail
@@ -724,7 +723,7 @@ MaxAuthTries 更改 2 # 注意千万不能小于 2 , 否则直接完全登录不
 编辑 /etc/hosts.allow:
 把允许登录 ssh 的 IP 加入（包括内网 IP)
 
-创建 /usr/local/bin/secure_ssh.sh
+创建 vi /usr/local/bin/secure_ssh.sh
 #!/bin/bash
 cat /var/log/secure|awk '/Failed/{print $(NF-3)}'|sort|uniq -c|awk '{print $2"="$1;}' > /usr/local/bin/black.list
 ipaddrs=`cat  /usr/local/bin/black.list`
@@ -740,6 +739,8 @@ do
   fi
 done
 
+crontab -e #5 分钟扫描一次
+*/5 * * * *  sh /usr/local/bin/secure_ssh.sh
 
 #测试：
 http://ota.chenyee.com:90/ota/check.do
