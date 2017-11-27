@@ -344,6 +344,11 @@ cp -a image /data/www/p-admin/otadm/
 ln -s /data/dl/ota/res/ /data/www/p-admin/otadm/res
 ln -s /data/dl/ota/temp/ /data/www/p-admin/otadm/temp
 
+
+#修改 /usr/local/tomcat/webapps/otadm/WEB-INF/classes/com/gionee/ota/server/so/mysql 下所有的 xml
+http://www.jboss.org/dtd/hibernate/hibernate-mapping-3.0.dtd
+修改为 http://www.hibernate.org/dtd/hibernate-mapping-3.0.dtd
+
 #tomcat mysql connector
 cd
 wget https://dev.mysql.com/get/Downloads/Connector-J/mysql-connector-java-5.1.44.tar.gz
@@ -354,6 +359,9 @@ cp mysql-connector-java-5.1.44-bin.jar /usr/local/tomcat/lib/
 
 vi /usr/local/tomcat/conf/server.xml
 <Host name="ota.chenyee.com"  appBase="webapps" unpackWARs="true" autoDeploy="true">
+
+#可以修改 conf/web.xml
+session_timout 为 120 分钟
 
 
 ######################################OTA DEPLOY###########################
